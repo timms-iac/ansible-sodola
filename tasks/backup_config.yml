@@ -10,7 +10,7 @@
 
 - name: Copy files to backup dir
   ansible.builtin.copy:
-    src: "{{ sodola_tftp_dir }}/{{ inventory_hostname }}/{{ item }}.cfg"
+    src: "{{ tftp_service.dir }}/{{ inventory_hostname }}/{{ item }}.cfg"
     dest: "{{ sodola_backup_dir }}/{{ inventory_hostname }}/{{ item }}-{{ ts }}.cfg"
     mode: 0640
   loop:

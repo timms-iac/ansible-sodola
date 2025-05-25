@@ -1,9 +1,37 @@
 ---
 # tasks file for sodola
 
+- name: Get service information
+  ansible.builtin.set_fact:
+    nb_services: '{{ query("netbox.netbox.nb_lookup", "services",
+      api_endpoint=ansible_nb_url,
+      token=ansible_nb_token) }}'
+
+# Needs improvement with multiple TFTP servers or multiple IPs
+- name: Get service information
+  ansible.builtin.set_fact:
+    tftp_service: |
+      {% set tftp = { "dir": sodola_tftp_dir, "ips": [sodola_tftp_ip] } %}
+      {% for service in nb_services %}
+      {% if "TFTP" == service.value.name and service.value.custom_fields.Directory is defined and service.value.ipaddresses is defined %}
+      {% set _ = tftp.update({"dir": service.value.custom_fields.Directory, "ips": [] }) %}
+      {% for addr in service.value.ipaddresses %}
+      {% set _ = tftp["ips"].append(addr.address.split("/")[0]) %}
+      {% endfor %}
+      {% endif %}
+      {% endfor %}
+      {{ tftp }}
+
+- name: Show tftp_service
+  ansible.builtin.debug:
+    var: tftp_service
+  tags:
+    - never
+    - sodola_debug
+
 - name: Create tftp directory
   ansible.builtin.file:
-    path: "{{ sodola_tftp_dir }}/{{ inventory_hostname }}"
+    path: "{{ tftp_service.dir }}/{{ inventory_hostname }}"
     state: directory
     mode: 0777
   delegate_to: localhost
@@ -27,7 +55,7 @@
           - oid: "1.3.6.1.4.1.27282.1.3.1.6.3.1"
             iid: "0"
             type: IPADDR
-            value: "{{ sodola_tftp_ip }}"
+            value: "{{ tftp_service.ips[0] }}"
           - oid: "1.3.6.1.4.1.27282.1.3.1.6.3.2"
             iid: "0"
             type: OCTETSTR

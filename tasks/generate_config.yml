@@ -111,6 +111,7 @@
     nb_services: '{{ query("netbox.netbox.nb_lookup", "services",
       api_endpoint=ansible_nb_url,
       token=ansible_nb_token) }}'
+  when: nb_services is undefined
 
 - name: Show service variables
   ansible.builtin.debug:
@@ -136,12 +137,6 @@
 - name: Render Config Template
   ansible.builtin.template:
     src: config.j2
-    dest: "{{ sodola_tftp_dir }}/{{ inventory_hostname }}/ansible.cfg"
-  delegate_to: localhost
-
-- name: Copy Config
-  ansible.builtin.template:
-    src: "{{ sodola_tftp_dir }}/{{ inventory_hostname }}/ansible.cfg"
-    dest: "{{ sodola_tftp_dir }}/{{ inventory_hostname }}_ansible.cfg"
+    dest: "{{ tftp_service.dir }}/{{ inventory_hostname }}/ansible.cfg"
   delegate_to: localhost
 
