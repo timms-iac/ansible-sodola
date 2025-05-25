@@ -1,0 +1,90 @@
+---
+# tasks file for sodola
+
+- name: Create tftp directory
+  ansible.builtin.file:
+    path: "{{ sodola_tftp_dir }}/{{ inventory_hostname }}"
+    state: directory
+    mode: 0777
+  delegate_to: localhost
+
+    #- name: Download all config files to TFTP server
+    #  ansible.builtin.shell: |
+    #    snmpset -v2c -c "{{ ansible_snmp_community }}" -m ALL "{{ ansible_host }}" 1.3.6.1.4.1.27282.1.3.1.6.3.1.0 a "{{ sodola_tftp_ip }}"
+    #    snmpset -v2c -c "{{ ansible_snmp_community }}" -m ALL "{{ ansible_host }}" 1.3.6.1.4.1.27282.1.3.1.6.3.2.0 s "{{ inventory_hostname }}/running.cfg"
+    #    snmpset -v2c -c "{{ ansible_snmp_community }}" -m ALL  "{{ ansible_host }}" 1.3.6.1.4.1.27282.1.3.1.6.3.5.0 i 4
+    #    snmpset -v2c -c "{{ ansible_snmp_community }}" -m ALL  "{{ ansible_host }}" 1.3.6.1.4.1.27282.1.3.1.6.3.2.0 s "{{ inventory_hostname }}/startup.cfg"
+    #    snmpset -v2c -c "{{ ansible_snmp_community }}" -m ALL  "{{ ansible_host }}" 1.3.6.1.4.1.27282.1.3.1.6.3.5.0 i 5
+    #    snmpset -v2c -c "{{ ansible_snmp_community }}" -m ALL  "{{ ansible_host }}" 1.3.6.1.4.1.27282.1.3.1.6.3.2.0 s "{{ inventory_hostname }}/backup.cfg"
+    #    snmpset -v2c -c "{{ ansible_snmp_community }}" -m ALL  "{{ ansible_host }}" 1.3.6.1.4.1.27282.1.3.1.6.3.5.0 i 6
+    #  delegate_to: localhost
+    #
+    #
+    #
+- name: Download running.cfg to TFTP server
+  ansible.snmp.set:
+    oids:
+          - oid: "1.3.6.1.4.1.27282.1.3.1.6.3.1"
+            iid: "0"
+            type: IPADDR
+            value: "{{ sodola_tftp_ip }}"
+          - oid: "1.3.6.1.4.1.27282.1.3.1.6.3.2"
+            iid: "0"
+            type: OCTETSTR
+            value: "{{ inventory_hostname }}/running.cfg"
+          - oid: "1.3.6.1.4.1.27282.1.3.1.6.3.5"
+            iid: "0"
+            type: INTEGER
+            value: 4
+  register: command_result
+  failed_when: command_result.failed
+
+- name: Download results
+  ansible.builtin.debug:
+    var: command_result
+  tags:
+    - never
+    - sodola_debug
+
+- name: Download startup.cfg to TFTP server
+  ansible.snmp.set:
+    oids:
+          - oid: "1.3.6.1.4.1.27282.1.3.1.6.3.2"
+            iid: "0"
+            type: OCTETSTR
+            value: "{{ inventory_hostname }}/startup.cfg"
+          - oid: "1.3.6.1.4.1.27282.1.3.1.6.3.5"
+            iid: "0"
+            type: INTEGER
+            value: 5
+  register: command_result
+  failed_when: command_result.failed
+
+- name: Download results
+  ansible.builtin.debug:
+    var: command_result
+  tags:
+    - never
+    - sodola_debug
+
+- name: Download backup.cfg to TFTP server
+  ansible.snmp.set:
+    oids:
+          - oid: "1.3.6.1.4.1.27282.1.3.1.6.3.2"
+            iid: "0"
+            type: OCTETSTR
+            value: "{{ inventory_hostname }}/backup.cfg"
+          - oid: "1.3.6.1.4.1.27282.1.3.1.6.3.5"
+            iid: "0"
+            type: INTEGER
+            value: 6
+  register: command_result
+  failed_when: command_result.failed
+
+- name: Download results
+  ansible.builtin.debug:
+    var: command_result
+  tags:
+    - never
+    - sodola_debug
+

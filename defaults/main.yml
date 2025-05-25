@@ -1,2 +1,40 @@
 ---
 # defaults file for sodola
+sodola_backup_dir: "~/backup"
+sodola_tftp_dir: "/srv/tftp"
+sodola_tftp_ip: "{{ ansible_default_ipv4.address }}"
+sodola_system_name: "{{ inventory_hostname_short }}"
+sodola_system_location: Default
+sodola_ip_domain_name: mydomain
+sodola_ip_name_servers:
+  - 8.8.8.8
+sodola_default_user: admin
+sodola_default_user_comment: "Admin User"
+sodola_default_user_password: MjEyMzJmMjk3YTU3YTVhNzQzODk0YTBlNGE4MDFmYzM=
+sodola_netmask: 24
+
+  #spanning_tree_mst_configuration:
+  #  - name: "{{ mac_sodola01_vlan1 }}"
+  #snmp:
+  #  groups:
+  #    - name: management
+  #      version: 3
+  #      priv:
+  #        read_view: all
+  #        write_view: all
+  #        notify_view: all
+  #  users:
+  #    - name: test
+  #      group: management
+  #      auth_sha: sha-secret
+  #      auth_priv: priv-secret
+  #  community:
+  #    - name: manage
+  #      permission: rw
+  #interfaces:
+  #  - name: MGI1
+  #    eee: true
+  #    description: Test
+  #    ip_dhcp_snooping_trust: true
+  #    ip_dhcp_snooping_verify: mac-address
+  #

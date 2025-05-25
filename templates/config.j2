@@ -1,0 +1,182 @@
+{# Get IP/Routing information #}
+{% set network = {"system_name": sodola_system_name + "." + sodola_ip_domain_name} %}
+{% for interface in nb_interfaces %}
+{% if interface.value.type.value == "virtual" %}
+{% for addr in nb_ip_addresses %}
+{% if addr.value.assigned_object.device.name is defined and addr.value.assigned_object.device.name == inventory_hostname and addr.value.assigned_object.name == interface.value.name %}
+{% set _ = network.update({"system_name": addr.value.dns_name }) %}
+{% set _ = network.update({"ip": addr.value.address.split('/')[0] }) %}
+{% for prefix in nb_prefixes %}
+{% if prefix.value.vrf.name is defined and prefix.value.vrf.name == addr.value.vrf.name and nb_device[0].value.primary_ip4.address is defined and nb_device[0].value.primary_ip4.address == addr.value.address %}
+{% set _ = network.update({"netmask": prefix.value.prefix.split('/')[1] }) %}
+{% for route in nb_static_routes %}
+{% if route.value.vrf.name is defined and route.value.vrf.name == prefix.value.vrf.name and route.value.prefix == prefix.value.prefix %}
+{% set _ = network.update({"gw": route.value.next_hop }) %}
+{% endif %}
+{% endfor %}{# route #}
+{% endif %}
+{% endfor %}{# prefix #}
+{% endif %}
+{% endfor %}{# addr #}
+{% if interface.value.mac_address is defined %}
+{% set _ = network.update({"mac": interface.value.mac_address }) %}
+{% endif %}
+{% endif %}
+{% endfor %}{# interface #}
+{# #}
+{# #}
+{# Get Services #}
+{% set svc = {"dns": [], "ntp": []} %}
+{% for service in nb_services %}
+{% if service.value.name == "DNS" %}
+{% for addr in service.value.ipaddresses %}
+{% set _ = svc["dns"].append(addr.address.split("/")[0]) %}
+{% endfor %}
+{% endif %}{# DNS #}
+{% if service.value.name == "NTP" %}
+{% for addr in service.value.ipaddresses %}
+{% set _ = svc["ntp"].append({"ip": addr.address.split("/")[0], "port": service.value.ports[0] }) %}
+{% endfor %}
+{% endif %}{# NTP #}
+{% endfor %}{# service #}
+{# #}
+{# #}
+SYSTEM CONFIG FILE ::= BEGIN
+!
+system name "{{ network.system_name }}"
+{% if nb_locations[0].value.site.name is defined and nb_locations[0].value.parent.name is defined and nb_locations[0].value.name is defined %}
+system location "{{ nb_locations[0].value.site.name }} / {{ nb_locations[0].value.parent.name }} / {{ nb_locations[0].value.name }}"
+{% else %}
+system location "{{ sodola_system_location }}"
+{% endif %}
+{% if nb_device[0].value.tenant.name is defined %}
+system contact "{{ nb_device[0].value.tenant.name }} @ {{ ts }}"
+{% else %}
+system contact "{{ sodola_default_user_comment }} @ {{ ts }}"
+{% endif %}
+ip domain name {{ network.system_name }}
+{% if svc["dns"] | length > 0 %}
+ip name-server {{ svc["dns"] | join(" ") }}
+{% endif %}
+!
+username "{{ sodola_default_user }}" secret encrypted {{ sodola_default_user_password }}
+!
+{% if svc["ntp"] | length > 0 %}
+clock source sntp
+sntp host {{ svc["ntp"][0]["ip"] }} port {{ svc["ntp"][0]["port"] }}
+clock timezone "" 1 minutes 0
+clock summer-time "" recurring eu
+{% endif %}
+!
+{% if nb_vlans[0].value.vid is defined %}
+{% for vlan in nb_vlans | sort(attribute='value.vid') %}
+vlan {{ vlan.value.vid }}
+ name "{{ vlan.value.name }}"
+{% endfor %}
+{% else %}
+vlan 1
+ name "default"
+{% endif %}
+!
+{% if network.mac is defined %}
+spanning-tree mst configuration
+ name "{{ network.mac }}"
+{% endif %}
+!
+snmp community "public" ro
+{% if ansible_snmp_community is defined %}
+snmp community "{{ ansible_snmp_community }}" rw
+{% endif %}
+snmp
+!
+!
+{# Internal interface with system ip #}
+{% if network["interface_name"] is defined and network["ip"] is defined and network["netmask"] is defined %}
+interface {{ network["interface_name"] }}
+ ip address {{ [network["ip"], network["netmask"]] | join('/') }}
+{% else %}
+interface vlan1
+ ip address {{ ansible_host }}/{{ sodola_netmask }}
+{% endif %}
+{# #}
+{# #}
+{# Physical Interfaces and LAGs #}
+{% for interface in nb_interfaces %}
+{% if interface.value.type.value != "virtual" %}
+interface {{ interface.value.name }}
+{% if interface.value.lag is defined and interface.value.lag is not none %}
+ lag {{ interface.value.lag.name | replace('LAG','') }} mode active
+{% endif %}
+{% if interface.value.custom_fields.EEE is defined and interface.value.custom_fields.EEE %}
+ eee
+{% endif %}
+{% set parsed_vlans = [] %}
+{% if interface.value.tagged_vlans is defined and interface.value.tagged_vlans | length > 0 %}
+{% set parsed_vlans = interface.value.tagged_vlans | map(attribute='vid') | ansible.netcommon.vlan_parser %}
+{% endif %}
+{% if interface.value.untagged_vlan is defined and interface.value.untagged_vlan is not none %}
+ switchport trunk native vlan {{ interface.value.untagged_vlan.vid }}
+{% if parsed_vlans | length > 0 %}
+ switchport trunk allowed vlan remove all
+ switchport trunk allowed vlan add {{ parsed_vlans | join(',') }}
+{% else %}
+ switchport trunk allowed vlan remove all
+{% endif %}
+{% elif (interface.value.untagged_vlan is not defined or interface.value.untagged_vlan is none) and parsed_vlans | length > 0 %}
+ switchport mode hybrid
+ switchport hybrid acceptable-frame-type tagged-only
+ switchport hybrid allowed vlan remove all
+ switchport hybrid allowed vlan add {{ parsed_vlans | join(',') }} tagged
+ switchport default-vlan tagged
+{% endif %}
+{% if interface.value.enabled %}
+ no shutdown
+{% else %}
+ shutdown
+{% endif %}
+ speed {{ interface.value.duplex.value }}
+ duplex {{ interface.value.duplex.value }}
+ no description
+ description "{{ interface.value.description }}"
+{# #}
+{# LLDP is not fully working yet #}
+{# #}
+{% if not "LAG" in interface.value.name %}
+{% if interface.value.custom_fields.LLDP is defined and interface.value.custom_fields.LLDP %}
+ lldp
+ lldp tx
+ lldp rx
+ no lldp tlv-select
+ lldp tlv-select port-desc sys-name sys-desc sys-cap mac-phy lag max-frame-size management-addr
+{% if interface.value.untagged_vlan is defined and interface.value.untagged_vlan is not none and parsed_vlans | length > 0 %}
+{% if interface.value.untagged_vlan.vid in interface.value.tagged_vlans | map(attribute='vid') %}
+ lldp tlv-select vlan-name add {{ parsed_vlans | join(',') }}
+{% else %}
+ lldp tlv-select vlan-name add {{ interface.value.untagged_vlan.vid }},{{ parsed_vlans | join(',') }}
+{% endif %}
+{% elif interface.value.untagged_vlan is defined and interface.value.untagged_vlan is not none %}
+ lldp tlv-select vlan-name add  {{ interface.value.untagged_vlan.vid }}
+{% elif parsed_vlans | length > 0 %}
+ lldp tlv-select vlan-name add {{ parsed_vlans | join(',') }}
+{% endif %}
+ lldp med
+ lldp med tlv-select network-policy location inventory
+{% else %}
+ no lldp rx
+ no lldp tx
+{% endif %}
+{% endif %}
+!
+{% endif %}
+{% endfor %}{# interface #}
+line console
+ password-thresh 0
+!
+!
+{% if network["gw"] is defined %}
+ip route 0.0.0.0/0 {{ network["gw"] }}
+{% endif %}
+!
+!
+!
+!

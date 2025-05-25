@@ -1,0 +1,21 @@
+---
+# tasks file for sodola
+
+- name: Create backup directory
+  ansible.builtin.file:
+    path: "{{ sodola_backup_dir }}/{{ inventory_hostname }}"
+    state: directory
+    mode: 0750
+  delegate_to: localhost
+
+- name: Copy files to backup dir
+  ansible.builtin.copy:
+    src: "{{ sodola_tftp_dir }}/{{ inventory_hostname }}/{{ item }}.cfg"
+    dest: "{{ sodola_backup_dir }}/{{ inventory_hostname }}/{{ item }}-{{ ts }}.cfg"
+    mode: 0640
+  loop:
+    - "running"
+    - "startup"
+    - "backup"
+    - "ansible"
+  delegate_to: localhost

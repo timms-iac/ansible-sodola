@@ -1,2 +1,19 @@
 ---
 # tasks file for sodola
+
+- name: Download current switch configuration
+  include_tasks:
+    file: download_config.yml
+
+- name: Generate new switch configuration
+  include_tasks:
+    file: generate_config.yml
+
+- name: Backup old and new switch configuration
+  include_tasks:
+    file: backup_config.yml
+
+- name: Upload new switch configuration
+  include_tasks:
+    file: upload_config.yml
+

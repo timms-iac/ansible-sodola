@@ -1,0 +1,147 @@
+---
+# tasks file for sodola
+- name: Get timestamp
+  ansible.builtin.set_fact:
+    ts: '{{ lookup(''pipe'', ''date -u +"%Y-%m-%dT%H:%M:%SZ"'') }}'
+  delegate_to: localhost
+
+- name: Get Device information
+  ansible.builtin.set_fact:
+    nb_device: '{{ query("netbox.netbox.nb_lookup", "devices",
+        api_endpoint=ansible_nb_url,
+        api_filter="name=" ~inventory_hostname,
+        token=ansible_nb_token) }}'
+
+- name: Show device variables
+  ansible.builtin.debug:
+    var: nb_device
+  tags:
+    - never
+    - sodola_debug
+
+- name: Get Interface information
+  ansible.builtin.set_fact:
+    nb_interfaces: '{{ query("netbox.netbox.nb_lookup", "interfaces",
+        api_endpoint=ansible_nb_url,
+        api_filter="device=" ~inventory_hostname,
+        token=ansible_nb_token) }}'
+
+- name: Show interfaces variables
+  ansible.builtin.debug:
+    var: nb_interfaces
+  tags:
+    - never
+    - sodola_debug
+
+- name: Get VLAN information
+  ansible.builtin.set_fact:
+    nb_vlans: '{{ query("netbox.netbox.nb_lookup", "vlans",
+        api_filter="site.name=" ~nb_device[0].value.site.name,
+        api_endpoint=ansible_nb_url,
+        token=ansible_nb_token) }}'
+
+- name: Show vlans variables
+  ansible.builtin.debug:
+    var: nb_vlans
+  tags:
+    - never
+    - sodola_debug
+
+- name: Get Location information 
+  ansible.builtin.set_fact:  
+    nb_locations: '{{ query("netbox.netbox.nb_lookup", "locations",
+        api_filter="site.name=" ~nb_device[0].value.site.name and "name=" ~nb_device[0].value.location.name,
+        api_endpoint=ansible_nb_url,
+        token=ansible_nb_token) }}'
+
+        #api_filter="site.display=" ~nb_device[0].value.site.display,
+        #api_filter="location.display=" ~nb_device[0].value.location.display,
+        #        api_filter="site=" ~nb_device[0].site.display,
+
+- name: Show locations variables
+  ansible.builtin.debug:
+    var: nb_locations
+  tags:
+    - never
+    - sodola_debug
+
+- name: Get IP address information
+  ansible.builtin.set_fact:
+    nb_ip_addresses: '{{ query("netbox.netbox.nb_lookup", "ip-addresses",
+      api_endpoint=ansible_nb_url,
+      token=ansible_nb_token) }}'
+
+- name: Show ip_addresses variables
+  ansible.builtin.debug:
+    var: nb_ip_addresses
+  tags:
+    - never
+    - sodola_debug
+
+- name: Get Prefix information
+  ansible.builtin.set_fact:
+    nb_prefixes: '{{ query("netbox.netbox.nb_lookup", "prefixes",
+      api_endpoint=ansible_nb_url,
+      token=ansible_nb_token) }}'
+
+- name: Show prefixes variables
+  ansible.builtin.debug:
+    var: nb_prefixes
+  tags:
+    - never
+    - sodola_debug
+
+
+- name: Get static route information
+  ansible.builtin.set_fact:
+    nb_static_routes: '{{ query("netbox.netbox.nb_lookup", "staticroute",
+      plugin="routing",
+      api_endpoint=ansible_nb_url,
+      token=ansible_nb_token) }}'
+
+- name: Show static_route variables
+  ansible.builtin.debug:
+    var: nb_static_routes
+  tags:
+    - never
+    - sodola_debug
+
+- name: Get service information
+  ansible.builtin.set_fact:
+    nb_services: '{{ query("netbox.netbox.nb_lookup", "services",
+      api_endpoint=ansible_nb_url,
+      token=ansible_nb_token) }}'
+
+- name: Show service variables
+  ansible.builtin.debug:
+    var: nb_services
+  tags:
+    - never
+    - sodola_debug
+
+      #- name: Get secrets information
+      #  ansible.builtin.set_fact:
+      #    nb_secrets: '{{ query("netbox.netbox.nb_lookup", "secrets",
+      #      plugin="secrets",
+      #      api_filter="assigned_object.name=" ~nb_device[0].value.name,
+      #      api_endpoint=ansible_nb_url,
+      #      token=ansible_nb_token) }}'
+      #
+      #- name: Show secret variables
+      #  ansible.builtin.debug:
+      #    var: nb_secrets
+      #
+      #- meta: end_play
+      #
+- name: Render Config Template
+  ansible.builtin.template:
+    src: config.j2
+    dest: "{{ sodola_tftp_dir }}/{{ inventory_hostname }}/ansible.cfg"
+  delegate_to: localhost
+
+- name: Copy Config
+  ansible.builtin.template:
+    src: "{{ sodola_tftp_dir }}/{{ inventory_hostname }}/ansible.cfg"
+    dest: "{{ sodola_tftp_dir }}/{{ inventory_hostname }}_ansible.cfg"
+  delegate_to: localhost
+
